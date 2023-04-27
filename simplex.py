@@ -19,7 +19,13 @@ class Model:
 
     @staticmethod
     def generate_symbolic_expr(expr: str):
-        return sp.parse_expr(expr)
+        r = sp.parse_expr(expr)
+        # print(r, type(r))
+        # if (type(r) == bool):
+        #     s = expr.split("==")
+        #     lhs, rhs = s[0], s[1]
+        #     r = sp.core.relational.Eq(lhs, rhs)
+        return r
 
     def variable(self, symbol: sp.Symbol):
         self.variables.append(symbol)
@@ -29,14 +35,7 @@ class Model:
         self.optimization_type = max_or_min
 
     def constraint(self, constraint: sp.Expr):
-        # if (constraint.has(sp.core.relational.Ge)):
-        #     lhs = constraint.lhs
-        #     rhs = constraint.rhs
-        #     lhs = (-1) * lhs
-        #     rhs = (-1) * rhs
-        #     constraint = sp.core.relational.Le(lhs, rhs)
-
-        if (len(constraint.lhs.free_symbols) == 1 and constraint.rhs == 0):
+        if (len(constraint.free_symbols) == 1):
             self.non_negative_constraints.append(constraint)
         else:
             self.constraints.append(constraint)
@@ -59,24 +58,33 @@ class Model:
         # y >= K ? -y <= -K : 0
         for i in range(len(self.constraints)):
             new_c = 0
+            c = self.constraints[i]
 
-            if self.constraints[i].has(sp.core.relational.Ge):
-                new_c = -self.constraints[i].lhs <= -self.constraints[i].rhs
+            if c.has(sp.core.relational.Ge):
+                new_c = -c.lhs <= -c.rhs
             else:
-                new_c = self.constraints[i]
+                new_c = c
             standard_model.constraint(new_c)
+
+        # non-negative constraints correction
+        # if variable xi is not positive, substitute by xi_ - xi__
+        for v in self.variables:
+            positive = False
+            for c in self.non_negative_constraints:
+                if c.has(v):
+                    positive = True
+        if not positive:
+            self.substitute(v)
 
         for i in range(len(self.non_negative_constraints)):
             new_c = 0
             c = self.non_negative_constraints[i]
 
-            if c.has(sp.core.relational.Ge):
-                new_c = - c.lhs <= - c.rhs
+            if c.has(sp.core.relational.Le):
+                new_c = - c.lhs >= - c.rhs
             else:
                 new_c = c
             standard_model.constraint(new_c)
-
-        standard_model.show()
 
     def show(self):
         if self.optimization_type:
@@ -94,6 +102,30 @@ class Model:
         print("Non-negative Constraints: ")
         for i in self.non_negative_constraints:
             print("\t\t", i)
+
+    def substitute(self, v):
+        v_ = sp.Symbol(f"{v.name}_")
+        v__ = sp.Symbol(f"{v.name}__")
+        print("substitution of ", v, " by ", v_, v__)
+
+        for i in range(len(self.constraints)):
+            c = self.constraints[i]
+            c = c.subs(v, v_-v__)
+
+        self.objective_function_expr = self.objective_function_expr.subs(
+            v, v_-v__)
+
+        self.variables.remove(v)
+        self.variable(v_)
+        self.variable(v__)
+
+        for i in range(len(self.non_negative_constraints)):
+            c = self.non_negative_constraints[i]
+            if c.has(v):
+                self.non_negative_constraints.remove(c)
+                self.constraint(c.subs(v, v_-v__))
+        self.non_negative_constraints.append(v_ >= 0)
+        self.non_negative_constraints.append(v__ >= 0)
 
 
 def index_min(l) -> int:

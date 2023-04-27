@@ -34,7 +34,7 @@ def main():
 
     model.to_standard_form()
 
-    # model.show()
+    model.show()
 
 
 if __name__ == "__main__":
