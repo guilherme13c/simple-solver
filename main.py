@@ -15,9 +15,17 @@ def main():
     constraints = input_data[1:]
 
     obj_function = Model.generate_symbolic_expr(
-        "".join(obj_function))
-    constraints = [Model.generate_symbolic_expr(
-        "".join(i)) for i in constraints]
+        " ".join(obj_function))
+
+    aux = []
+    for i in constraints:
+        c = Model.generate_symbolic_expr(" ".join(i))
+        if type(c) == list:
+            aux.append(c[0])
+            aux.append(c[1])
+        else:
+            aux.append(c)
+    constraints = aux
 
     model = Model()
 
@@ -30,11 +38,17 @@ def main():
     for c in constraints:
         model.constraint(c)
 
-    model.show()
+    # model.show()
 
-    model.to_standard_form()
+    standard_model = model.to_standard_form()
 
-    model.show()
+    # standard_model.show()
+
+    print(model.equations())
+    print(model.variables)
+
+    as_matrix = sp.linear_eq_to_matrix(model.equations(), model.variables)
+    print(as_matrix)
 
 
 if __name__ == "__main__":

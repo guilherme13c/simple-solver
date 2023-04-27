@@ -20,11 +20,10 @@ class Model:
     @staticmethod
     def generate_symbolic_expr(expr: str):
         r = sp.parse_expr(expr)
-        # print(r, type(r))
-        # if (type(r) == bool):
-        #     s = expr.split("==")
-        #     lhs, rhs = s[0], s[1]
-        #     r = sp.core.relational.Eq(lhs, rhs)
+        if (type(r) == bool):
+            s = expr.replace("\n", "").split("==")
+            lhs, rhs = sp.parse_expr(s[0]), sp.parse_expr(s[1])
+            r = [lhs >= rhs, lhs <= rhs]
         return r
 
     def variable(self, symbol: sp.Symbol):
@@ -40,7 +39,6 @@ class Model:
         else:
             self.constraints.append(constraint)
 
-    # TODO: finish implementing
     def to_standard_form(self):
         standard_model = Model()
 
@@ -73,8 +71,8 @@ class Model:
             for c in self.non_negative_constraints:
                 if c.has(v):
                     positive = True
-        if not positive:
-            self.substitute(v)
+            if not positive:
+                self.substitute(v)
 
         for i in range(len(self.non_negative_constraints)):
             new_c = 0
@@ -85,6 +83,10 @@ class Model:
             else:
                 new_c = c
             standard_model.constraint(new_c)
+
+        standard_model.variables = self.variables
+
+        return standard_model
 
     def show(self):
         if self.optimization_type:
@@ -104,28 +106,42 @@ class Model:
             print("\t\t", i)
 
     def substitute(self, v):
-        v_ = sp.Symbol(f"{v.name}_")
-        v__ = sp.Symbol(f"{v.name}__")
-        print("substitution of ", v, " by ", v_, v__)
+        _v = sp.Symbol(f"_{v.name}")
+        __v = sp.Symbol(f"__{v.name}")
+        # print("substitution of ", v, " by ", _v, __v)
 
         for i in range(len(self.constraints)):
             c = self.constraints[i]
-            c = c.subs(v, v_-v__)
+            c = c.subs(v, _v-__v)
 
         self.objective_function_expr = self.objective_function_expr.subs(
-            v, v_-v__)
+            v, _v-__v)
 
-        self.variables.remove(v)
-        self.variable(v_)
-        self.variable(v__)
+        vs = self.variables
+        vs.remove(v)
+        self.variables = vs
+        self.variable(_v)
+        self.variable(__v)
 
         for i in range(len(self.non_negative_constraints)):
             c = self.non_negative_constraints[i]
             if c.has(v):
                 self.non_negative_constraints.remove(c)
-                self.constraint(c.subs(v, v_-v__))
-        self.non_negative_constraints.append(v_ >= 0)
-        self.non_negative_constraints.append(v__ >= 0)
+                self.constraint(c.subs(v, _v-__v))
+        self.non_negative_constraints.append(_v >= 0)
+        self.non_negative_constraints.append(__v >= 0)
+
+    def equations(self):
+        r = []
+        r.append(self.objective_function_expr)
+        for c in self.constraints:
+            r.append(c)
+        for c in self.non_negative_constraints:
+            r.append(c)
+        return r
+
+    def to_matrix(self):
+        pass
 
 
 def index_min(l) -> int:
