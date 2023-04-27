@@ -3,6 +3,8 @@ import sys
 
 
 def main():
+    sp.init_printing(use_unicode=True)
+
     input_file_name = str(sys.argv[1])
 
     input_data = []
@@ -44,11 +46,11 @@ def main():
 
     # standard_model.show()
 
-    print(model.equations())
-    print(model.variables)
+    variable_map = dict()
+    for i in range(len(standard_model.variables)):
+        variable_map[standard_model.variables[i]] = i
 
-    as_matrix = sp.linear_eq_to_matrix(model.equations(), model.variables)
-    print(as_matrix)
+    # TODO: transform system to matrix form
 
 
 if __name__ == "__main__":
