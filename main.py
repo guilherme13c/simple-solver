@@ -18,19 +18,23 @@ def main():
         "".join(obj_function))
     constraints = [Model.generate_symbolic_expr(
         "".join(i)) for i in constraints]
-    
+
     model = Model()
-    
+
     variables = obj_function.free_symbols
     for v in variables:
         model.variable(v)
-        
+
     model.objective_function(max_or_min, obj_function)
-    
+
     for c in constraints:
         model.constraint(c)
-        
+
     model.show()
+
+    model.to_standard_form()
+
+    # model.show()
 
 
 if __name__ == "__main__":
