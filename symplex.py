@@ -23,6 +23,7 @@ class Model:
         self.variables = list()
         self.constraints = list()
         self.non_negative_constraints = list()
+        self.slack_vars = list()
 
     @staticmethod
     def generate_symbolic_expr(expr: str):
@@ -154,7 +155,10 @@ class Model:
         print("Variables: \t", self.variables)
         print("Constraints: ")
         for i in self.constraints:
-            print("\t\t", i)
+            if type(i) != Equation:
+                print("\t\t", i)
+            else:
+                print("\t\t", i.lhs, " == ", i.rhs)
         print("Non-negative Constraints: ")
         for i in self.non_negative_constraints:
             print("\t\t", i)
@@ -193,15 +197,6 @@ class Model:
         
         return new
 
-    def equations(self):
-        r = []
-        r.append(self.objective_function_expr)
-        for c in self.constraints:
-            r.append(c)
-        for c in self.non_negative_constraints:
-            r.append(c)
-        return r
-
     def to_slack_form(self):
         slack_model = Model()
         
@@ -209,18 +204,61 @@ class Model:
         slack_model.variables = self.variables
         
         constraints = []
+        slack_model.non_negative_constraints = self.non_negative_constraints
         for i in range(len(self.constraints)):
             c = self.constraints[i]
             constraints.append(Equation(c.lhs + sp.Symbol(f"s{i}"), c.rhs))
-            slack_model.variable(f"s{i}")
+            slack_model.variable(sp.Symbol(f"s{i}"))
+            slack_model.slack_vars.append(sp.Symbol(f"s{i}"))
+            slack_model.non_negative_constraints.append(sp.parse_expr(f"s{i} >= 0"))
         slack_model.constraints = constraints
         
-        
-        
-        slack_model.show()
-        
+        return slack_model
     
-
+    def to_tableau(self):
+        m, n = len(self.constraints), len(self.variables)
+        A = np.zeros(shape=[m+1,n+1], dtype=sp.Expr)
+        
+        A[0,0] = 1
+        
+        for i in range(1, m+1):
+            A[i,0] = 0
+        
+        coefs = []
+        for v in self.variables:
+            c = extract_coefficient(self.objective_function_expr, v)
+            coefs.append(c)
+        for i in range(1, n+1):
+            A[0,i] = -coefs[i-1]
+        
+        A_tmp = [] 
+        for c in self.constraints:
+            coefs = []
+            for v in self.variables:
+                coefs.append(extract_coefficient(c.lhs, v))
+            A_tmp.append(coefs)
+        for i in range(1, m+1):
+            for j in range(1, n+1):
+                A[i,j] = A_tmp[i-1][j-1]
+        
+        b = [0]
+        for c in self.constraints:
+            b.append(c.rhs)
+        b = np.array(b, dtype=sp.Expr)
+        
+        x = [sp.Symbol("_w")]
+        for v in self.variables:
+            x.append(v)
+        x = np.array(x, dtype=sp.Expr)
+        
+        T = np.zeros(shape=[m+1,n+2], dtype=sp.Expr)
+        for i in range(0,m+1):
+            T[i,-1] = b[i]
+            for j in range(0,n+1):
+                T[i,j] = A[i,j]
+                
+        return T        
+        
     def rename_variable(self, old: sp.Symbol, new: sp.Symbol) -> None:
         # rename in self.variables
         for i in range(len(self.variables)):
@@ -232,8 +270,10 @@ class Model:
         
         # rename in constraints
         for i in range(len(self.constraints)):
-            self.constraints[i] = self.constraints[i].subs(old, new)
-
+            if type(self.constraints[i]) != Equation:
+                self.constraints[i] = self.constraints[i].subs(old, new)
+            else:
+                self.constraints[i] = Equation(self.constraints[i].lhs.subs(old, new), self.constraints[i].rhs.subs(old, new))
         
         # rename in non_negative_constraints
         for i in range(len(self.non_negative_constraints)):
@@ -251,3 +291,64 @@ class Equation:
     def __init__(self, lhs:sp.Expr()=sp.Expr(), rhs:sp.Expr()=sp.Expr()) -> None:
         self.lhs : sp.Expr = lhs
         self.rhs : sp.Expr = rhs
+
+def subs_vars(expr: sp.Expr, vars: list, vals: list):
+    assert len(vals) == len(vars)
+    
+    if len(vars) > 0:
+        subs_vars(expr.subs(vars[0], vals[0]), vars[1:], vals[1:])
+    
+def extract_coefficient(expr: sp.Expr, v):
+    d = expr.as_coefficients_dict()
+    if v in d:
+        return d[v]
+    else:
+        return 0
+
+def find_pivot_column(T: np.ndarray) -> int:
+    # r = min(T[0,1:T.shape[1]])
+    # r = min([r, 0])
+
+    # return r
+    
+    r = 1
+    for i in range(2,T.shape[1]):
+        if T[0,i] < T[0,r]:
+            r = i
+    if T[0,r] >= 0:
+        return None
+    else:
+        return r
+
+def find_pivot_row(T: np.ndarray, pivot_col: int) -> int:
+    last_col = T[:,-1]
+    col = T[:,pivot_col]
+    
+    for i in range(1,T.shape[0]-1):
+        if col[i] < SYMPLEX_ZERO:
+            return None
+        last_col[i] /= col[i]
+    
+    r = 1
+    for i in range(2,T.shape[0]-1):
+        if last_col[i] < last_col[r]:
+            r = i
+            
+    return r
+
+# TODO: Fix pivot
+def pivot(T: np.ndarray, row: int, col: int) -> np.ndarray:
+    pivot_value = T[row,col]
+
+    if pivot_value < SYMPLEX_ZERO:
+        return None
+    
+    for i in range(len(T[row,:])):
+        T[row,i] /= pivot_value
+        
+    for i in range(len(T)):
+        if i != row:
+            multiplier = T[i,col]
+            for j in range(len(T[0])):
+                T[i,j] = T[i][j] - multiplier * T[row][j]
+    return T

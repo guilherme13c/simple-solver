@@ -53,24 +53,32 @@ def main():
     print("-------------------------------------")
 
     slack_model = standard_model.to_slack_form()
+    slack_model.reset_variable_names()
     
+    print("slack model: ")
+    slack_model.show()
+    print("-------------------------------------")
+    
+    T = slack_model.to_tableau()
+    print("tableau: ")
+    sp.pprint(sp.Matrix(T))
 
-    # A, x, c, b = standard_model.to_matrix_form()
-
-
-    # print("matrix form: \n")
-    # print("MAX\t")
-    # sp.pprint(sp.Matrix(c).transpose())
-    # sp.pprint(sp.Matrix(x))
-    # print()
-    # print("subject to:")
-    # sp.pprint(sp.Matrix(A))
-    # sp.pprint(sp.Matrix(x))
-    # sp.pprint(sp.Matrix(b))
-    # print()
-    # sp.pprint(sp.Matrix(x).transpose())
-    # print("<= 0")
-
+    found = False
+    while not found:
+        col = find_pivot_column(T)
+        if col != None:
+            row = find_pivot_row(T, col)
+            if row == None:
+                found = True
+            else:
+                T = pivot(T, row, col)
+        else:
+            found = True
+        print("############################")
+        sp.pprint(sp.Matrix(T))
+    
+    print("-------------------------------------")
+    sp.pprint(sp.Matrix(T))
 
 if __name__ == "__main__":
     main()
