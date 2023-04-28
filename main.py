@@ -3,8 +3,6 @@ import sys
 
 
 def main():
-    sp.init_printing(use_unicode=True)
-
     input_file_name = str(sys.argv[1])
 
     input_data = []
@@ -40,19 +38,38 @@ def main():
     for c in constraints:
         model.constraint(c)
 
+
+    sp.init_printing(use_unicode=True, use_latex=True)
+    
+    print("input model: \n")
     model.show()
+    print("-------------------------------------")
 
     standard_model = model.to_standard_form()
+    standard_model.reset_variable_names()
 
+    print("standard model: \n")
     standard_model.show()
+    print("-------------------------------------")
 
     slack_model = standard_model.to_slack_form()
-    print(slack_model.B)
-    print(slack_model.N)
-    print(slack_model.c)
-    print(slack_model.b)
-    print(slack_model.A)
-    print(slack_model.v)
+    
+
+    # A, x, c, b = standard_model.to_matrix_form()
+
+
+    # print("matrix form: \n")
+    # print("MAX\t")
+    # sp.pprint(sp.Matrix(c).transpose())
+    # sp.pprint(sp.Matrix(x))
+    # print()
+    # print("subject to:")
+    # sp.pprint(sp.Matrix(A))
+    # sp.pprint(sp.Matrix(x))
+    # sp.pprint(sp.Matrix(b))
+    # print()
+    # sp.pprint(sp.Matrix(x).transpose())
+    # print("<= 0")
 
 
 if __name__ == "__main__":

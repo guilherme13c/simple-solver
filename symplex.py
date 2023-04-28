@@ -1,9 +1,13 @@
+from __future__ import print_function
+import builtins as __builtin__
+
 import numpy as np
 import sympy as sp
-import re
 
 SYMPLEX_MAX = False
 SYMPLEX_MIN = True
+
+SYMPLEX_ZERO = 1e-9
 
 class SymplexExecutionError(Exception):
     pass
@@ -45,30 +49,6 @@ class Model:
     def to_standard_form(self):
         standard_model = Model()
 
-        # y >= K ? -y <= -K : 0
-        for i in range(len(self.constraints)):
-            new_c = 0
-            c = self.constraints[i]
-
-            if c.has(sp.core.relational.Ge):
-                new_c = -c.lhs <= -c.rhs
-            else:
-                new_c = c
-            standard_model.constraint(new_c)
-            
-        for v in standard_model.objective_function_expr.free_symbols:
-            standard_model.variable(v)
-
-        for i in range(len(self.non_negative_constraints)):
-            new_c = 0
-            c = self.non_negative_constraints[i]
-
-            if c.has(sp.core.relational.Le):
-                new_c = - c.lhs >= - c.rhs
-            else:
-                new_c = c
-            standard_model.constraint(new_c)
-
         # non-negative constraints correction
         # if variable xi is not positive, substitute by xi_ - xi__
         tmp = self
@@ -79,6 +59,27 @@ class Model:
                     positive = True
             if not positive:
                 tmp = self.substitute(v)
+
+        # y >= K ? -y <= -K : 0
+        for i in range(len(tmp.constraints)):
+            new_c = 0
+            c = tmp.constraints[i]
+
+            if c.has(sp.core.relational.Ge):
+                new_c = -c.lhs <= -c.rhs
+            else:
+                new_c = c
+            standard_model.constraint(new_c)
+
+        for i in range(len(tmp.non_negative_constraints)):
+            new_c = 0
+            c = tmp.non_negative_constraints[i]
+
+            if c.has(sp.core.relational.Le):
+                new_c = - c.lhs >= - c.rhs
+            else:
+                new_c = c
+            standard_model.constraint(new_c)
 
         # min f(X) ? max -f(X) : 0
         standard_model.optimization_type = SYMPLEX_MAX
@@ -91,12 +92,55 @@ class Model:
             standard_model.objective_function(
                 SYMPLEX_MAX, tmp.objective_function_expr)
 
-        
-
-        standard_model.variables = self.variables
+        for v in standard_model.objective_function_expr.free_symbols:
+            standard_model.variable(v)
 
         return standard_model
 
+
+    """
+    generate form:
+    MAX cT . x
+    s.t.:
+        A . x <= b
+        x >= 0
+    """
+    def to_matrix_form(self):
+        
+        c = []
+        x = []
+        a = []
+        b = []
+        
+        for i in range(len(self.constraints)):
+            b.append(0)
+        
+        # Extract variables
+        x = self.variables
+        var_index = dict()
+        for i in range(len(x)):
+            c.append(0)
+            a.append([])
+            var_index[x[i]] = i
+        
+        coefficients = dict(self.objective_function_expr.as_coefficients_dict())
+        
+        # Extract coefficients from the objective function
+        for i in range(len(x)):
+            c[i] = coefficients[x[i]]
+            
+        # Extract coefficients from constraints
+        for i in range(len(self.constraints)):
+            a[i] = [0 for k in range(len(self.constraints))]
+            constraint = self.constraints[i]
+            coefficients = dict(constraint.lhs.as_coefficients_dict())
+            b[i] = constraint.rhs
+            for j in range(len(x)):
+                a[i][j] = 0
+                if x[j] in coefficients:
+                    a[i][j] = coefficients[x[j]]
+        
+        return np.array(a), np.array(x), np.array(c), np.array(b)     
 
     def show(self):
         if self.optimization_type:
@@ -123,7 +167,7 @@ class Model:
 
         for i in range(len(self.constraints)):
             c = self.constraints[i]
-            c = c.subs(v, _v-__v)
+            new.constraint(c.subs(v, _v-__v))
 
         new_of = self.objective_function_expr.subs(
             v, _v-__v)
@@ -159,129 +203,51 @@ class Model:
         return r
 
     def to_slack_form(self):
+        slack_model = Model()
         
-        # N, B
-        slack_model = SlackForm()
-        next_var_name = max([int(re.search(r"\d+", v.name).group()) for v in self.variables]) + 1
-        for v in self.constraints:
-            slack_model.B.append(sp.Symbol(f"x{next_var_name}"))
-            next_var_name += 1
-        for v in self.variables:
-            slack_model.N.append(v)
-
-        # v
-        of_const = []
-        for t in self.objective_function_expr.args:
-            if not t.free_symbols:
-                of_const.append(t)        
-        if len(of_const) == 0:
-            slack_model.v = 0
-        elif len(of_const) == 1:
-            slack_model.v = of_const[0]
-        else:
-            raise SymplexExecutionError
-
-        # b
-        c_const = []
-        for c in self.constraints:
-            tmp = [t for t in c.args if not t.free_symbols]
-            if len(tmp) == 0:
-                c_const.append(0)
-            elif len(tmp) == 1:
-                c_const.append(tmp[0])
-            else:
-                raise SymplexExecutionError
-        slack_model.b = c_const
-
-        # c
-        of_coef = []
-        for v in self.variables:
-            of_coef.append(0)
-        for t in self.objective_function_expr.args:
-            if t.free_symbols:
-                for v in self.variables:
-                    if v in t.free_symbols:
-                        v_index = self.variables.index(v)
-                        coef = t.args[0]
-                        of_coef[v_index] = coef
-        slack_model.c = of_coef
-                        
-        # TODO: generate A
+        slack_model.objective_function(SYMPLEX_MAX, self.objective_function_expr)
+        slack_model.variables = self.variables
         
-        # A
-        coef_matrix = []
+        constraints = []
+        for i in range(len(self.constraints)):
+            c = self.constraints[i]
+            constraints.append(Equation(c.lhs + sp.Symbol(f"s{i}"), c.rhs))
+            slack_model.variable(f"s{i}")
+        slack_model.constraints = constraints
         
-        return slack_model
-
-
-# def to_standard_form(model):
-#     standard_model = Model()
-
-#     # y >= K ? -y <= -K : 0
-#     for i in range(len(model.constraints)):
-#         new_c = 0
-#         c = model.constraints[i]
-
-#         if c.has(sp.core.relational.Ge):
-#             new_c = -c.lhs <= -c.rhs
-#         else:
-#             new_c = c
-#         standard_model.constraint(new_c)
-
-#     # non-negative constraints correction
-#     # if variable xi is not positive, substitute by xi_ - xi__
-#     for v in model.variables:
-#         positive = False
-#         for c in model.non_negative_constraints:
-#             if c.has(v):
-#                 positive = True
-#         if not positive:
-#             tmp = model.substitute(v)
-    
-#     # min f(X) ? max -f(X) : 0
-#     standard_model.optimization_type = SYMPLEX_MAX
-
-#     if tmp.optimization_type == SYMPLEX_MIN:
-#         standard_model.objective_function(
-#             SYMPLEX_MAX, -tmp.objective_function_expr)
-
-#     else:
-#         standard_model.objective_function(
-#             SYMPLEX_MAX, tmp.objective_function_expr)
-
-#     for v in standard_model.objective_function_expr.free_symbols:
-#         standard_model.variable(v)
+        
+        
+        slack_model.show()
+        
     
 
-#     for i in range(len(model.non_negative_constraints)):
-#         new_c = 0
-#         c = model.non_negative_constraints[i]
+    def rename_variable(self, old: sp.Symbol, new: sp.Symbol) -> None:
+        # rename in self.variables
+        for i in range(len(self.variables)):
+            if self.variables[i] == old:
+                self.variables[i] = new
+                
+        # rename in of
+        self.objective_function_expr = self.objective_function_expr.subs(old, new)
+        
+        # rename in constraints
+        for i in range(len(self.constraints)):
+            self.constraints[i] = self.constraints[i].subs(old, new)
 
-#         if c.has(sp.core.relational.Le):
-#             new_c = - c.lhs >= - c.rhs
-#         else:
-#             new_c = c
-#         standard_model.constraint(new_c)
+        
+        # rename in non_negative_constraints
+        for i in range(len(self.non_negative_constraints)):
+            self.non_negative_constraints[i] = self.non_negative_constraints[i].subs(
+                old, new)
 
-#     standard_model.variables = model.variables
+    def reset_variable_names(self):
+        for i in range(len(self.variables)):
+            self.rename_variable(self.variables[i], sp.Symbol(f"k{i}"))
+            
+        for i in range(len(self.variables)):
+            self.rename_variable(sp.Symbol(f"k{i}"), sp.Symbol(f"x{i+1}"))
 
-#     return standard_model
-
-def index_min(l) -> int:
-    r = 0
-    for i in range(1, len(l)):
-        if l[i] < l[r]:
-            r = i
-
-
-def initialize_simplex(model: Model):
-    pass
-
-class SlackForm:
-    def __init__(self):
-        self.N = []
-        self.B = []
-        self.A = []
-        self.b = []
-        self.c = []
-        self.v = 0
+class Equation:
+    def __init__(self, lhs:sp.Expr()=sp.Expr(), rhs:sp.Expr()=sp.Expr()) -> None:
+        self.lhs : sp.Expr = lhs
+        self.rhs : sp.Expr = rhs
