@@ -1,4 +1,4 @@
-from simplex import *
+from symplex import *
 import sys
 
 
@@ -46,11 +46,13 @@ def main():
 
     # standard_model.show()
 
-    variable_map = dict()
-    for i in range(len(standard_model.variables)):
-        variable_map[standard_model.variables[i]] = i
-
-    # TODO: transform system to matrix form
+    slack_model = standard_model.to_slack_form()
+    print(slack_model.B)
+    print(slack_model.N)
+    print(slack_model.c)
+    print(slack_model.b)
+    print(slack_model.A)
+    print(slack_model.v)
 
 
 if __name__ == "__main__":

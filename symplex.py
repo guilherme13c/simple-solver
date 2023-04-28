@@ -1,9 +1,12 @@
 import numpy as np
 import sympy as sp
+import re
 
 SYMPLEX_MAX = False
 SYMPLEX_MIN = True
 
+class SymplexExecutionError(Exception):
+    pass
 
 class SymplexInvalidExpr(Exception):
     pass
@@ -140,9 +143,58 @@ class Model:
             r.append(c)
         return r
 
-    def to_matrix(self):
-        pass
+    def to_slack_form(self):
+        # slack_model = Model()
 
+        # slack_model.variables = self.variables
+
+        # for i in range(len(self.constraints)):
+        #     slack_model.variables.append(sp.Symbol(f"s{i}"))
+        #     c = self.constraints[i]
+        #     lhs, rhs = c.lhs, c.rhs
+        #     new_c = sp.parse_expr(f"s{i} == {rhs} - {lhs}", evaluate=False)
+        #     print(new_c)
+        #     slack_model.constraint(new_c)
+        #     slack_model.constraint(f"s{i} >= 0")
+
+        # slack_model.show()
+
+        slack_model = SlackForm()
+        next_var_name = max([int(re.search(r"\d+", v.name).group()) for v in self.variables]) + 1
+        for v in self.constraints:
+            slack_model.N.append(sp.Symbol(f"x{next_var_name}"))
+            next_var_name += 1
+        for v in self.variables:
+            slack_model.B.append(v)
+
+        # of_const = []
+        # for t in self.objective_function_expr.as_terms():
+        #     if not t.free_symbols:
+        #         of_const.append()
+
+        if of_const == []:
+            self.v = 0
+        elif len(of_const) == 1:
+            self.v = of_const[0]
+        else:
+            raise SymplexExecutionError
+
+        c_const = []
+        for c in self.constraints:
+            print(self.objective_function_expr.as_terms())
+            tmp = [t for t in self.objective_function_expr.as_terms() if not t.free_symbols]
+            if tmp == []:
+                c_const.append(0)
+            elif len(tmp) == 1:
+                c_const.append(tmp[0])
+            else:
+                raise SymplexExecutionError
+        slack_model.b = c_const
+
+        # TODO: generate A
+        # TODO: generate c
+        
+        return slack_model
 
 def index_min(l) -> int:
     r = 0
@@ -153,3 +205,12 @@ def index_min(l) -> int:
 
 def initialize_simplex(model: Model):
     pass
+
+class SlackForm:
+    def __init__(self):
+        self.N = []
+        self.B = []
+        self.A = []
+        self.b = []
+        self.c = []
+        self.v = 0
