@@ -40,11 +40,11 @@ def main():
     for c in constraints:
         model.constraint(c)
 
-    # model.show()
+    model.show()
 
     standard_model = model.to_standard_form()
 
-    # standard_model.show()
+    standard_model.show()
 
     slack_model = standard_model.to_slack_form()
     print(slack_model.B)
