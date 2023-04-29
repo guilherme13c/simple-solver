@@ -1,3 +1,4 @@
+from __future__ import annotations
 import numpy as np
 import sympy as sp
 
@@ -17,7 +18,7 @@ class Equation:
         self.lhs : sp.Expr = lhs
         self.rhs : sp.Expr = rhs
 
-def subs_vars(expr: sp.Expr, vars: list, vals: list):
+def subs_vars(expr: sp.Expr, vars: list, vals: list) -> None:
     assert len(vals) == len(vars)
     
     if len(vars) > 0:
@@ -31,16 +32,6 @@ def extract_coefficient(expr: sp.Expr, v):
         return 0
 
 def find_pivot_column(T: np.ndarray) -> int:    
-    # r = 1
-    # for i in range(1,len(T[0,:])-1):
-    #     if T[0,i] < T[0,r]:
-    #         r = i
-    # if T[0,r] >= 0:
-    #     return None
-    # else:
-    #     return r
-    
-    r = 1
     for i in range(1,len(T[0,:])-1):
         if T[0,i] < 0:
             return i
@@ -56,7 +47,7 @@ def find_pivot_row(T: np.ndarray, pivot_col: int) -> int:
             last_col.append(float("inf"))
         else:
             last_col.append(T[i,-1]/col[i])
-    
+        
     r = 1
     for i in range(1,len(T[:,0])):
         if last_col[i] < last_col[r]:

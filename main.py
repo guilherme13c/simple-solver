@@ -65,6 +65,7 @@ def main():
 
     found = False
     while not found:
+        input()
         col = find_pivot_column(T)
         if col == None:
             found = True
