@@ -53,7 +53,7 @@ def main():
     print("-------------------------------------")
 
     slack_model = standard_model.to_slack_form()
-    slack_model.reset_variable_names()
+    # slack_model.reset_variable_names()
     
     print("slack model: ")
     slack_model.show()
@@ -66,15 +66,15 @@ def main():
     found = False
     while not found:
         col = find_pivot_column(T)
-        if col != None:
-            row = find_pivot_row(T, col)
-            if row == None:
-                found = True
-            else:
-                T = pivot(T, row, col)
-        else:
+        if col == None:
             found = True
+            continue
+        row = find_pivot_row(T, col)
+        if row == None:
+            found = True
+            continue
         print("############################")
+        T = pivot(T, row, col)
         sp.pprint(sp.Matrix(T))
     
     print("-------------------------------------")

@@ -1,17 +1,4 @@
-import numpy as np
-import sympy as sp
-
-SYMPLEX_MAX = False
-SYMPLEX_MIN = True
-
-SYMPLEX_ZERO = 1e-9
-
-class SymplexExecutionError(Exception):
-    pass
-
-class SymplexInvalidExpr(Exception):
-    pass
-
+from symplex_utils import *
 
 class Model:
     def __init__(self) -> None:
@@ -32,17 +19,21 @@ class Model:
         return r
 
     def variable(self, symbol: sp.Symbol):
-        self.variables.append(symbol)
+        if not symbol in self.variables:
+            self.variables.append(symbol)
 
     def objective_function(self, max_or_min: bool, function: sp.Expr):
         self.objective_function_expr = function
         self.optimization_type = max_or_min
 
     def constraint(self, constraint: sp.Expr):
-        if (len(constraint.free_symbols) == 1):
+        if len(constraint.free_symbols) == 1 and constraint.rhs == 0:
             self.non_negative_constraints.append(constraint)
         else:
             self.constraints.append(constraint)
+            
+        for i in constraint.free_symbols:
+            self.variable(i)
 
     def to_standard_form(self):
         standard_model = Model()
@@ -90,109 +81,10 @@ class Model:
             standard_model.objective_function(
                 SYMPLEX_MAX, tmp.objective_function_expr)
 
-        for v in standard_model.objective_function_expr.free_symbols:
+        for v in sorted([i for i in standard_model.objective_function_expr.free_symbols], key=lambda x : x.name):
             standard_model.variable(v)
 
         return standard_model
-
-
-    """
-    generate form:
-    MAX cT . x
-    s.t.:
-        A . x <= b
-        x >= 0
-    """
-    def to_matrix_form(self):
-        
-        c = []
-        x = []
-        a = []
-        b = []
-        
-        for i in range(len(self.constraints)):
-            b.append(0)
-        
-        # Extract variables
-        x = self.variables
-        var_index = dict()
-        for i in range(len(x)):
-            c.append(0)
-            a.append([])
-            var_index[x[i]] = i
-        
-        coefficients = dict(self.objective_function_expr.as_coefficients_dict())
-        
-        # Extract coefficients from the objective function
-        for i in range(len(x)):
-            c[i] = coefficients[x[i]]
-            
-        # Extract coefficients from constraints
-        for i in range(len(self.constraints)):
-            a[i] = [0 for k in range(len(self.constraints))]
-            constraint = self.constraints[i]
-            coefficients = dict(constraint.lhs.as_coefficients_dict())
-            b[i] = constraint.rhs
-            for j in range(len(x)):
-                a[i][j] = 0
-                if x[j] in coefficients:
-                    a[i][j] = coefficients[x[j]]
-        
-        return np.array(a), np.array(x), np.array(c), np.array(b)     
-
-    def show(self):
-        if self.optimization_type:
-            print("MIN")
-        elif not (self.optimization_type):
-            print("MAX")
-        else:
-            raise SymplexInvalidExpr
-
-        print("Objective: \t", self.objective_function_expr)
-        print("Variables: \t", self.variables)
-        print("Constraints: ")
-        for i in self.constraints:
-            if type(i) != Equation:
-                print("\t\t", i)
-            else:
-                print("\t\t", i.lhs, " == ", i.rhs)
-        print("Non-negative Constraints: ")
-        for i in self.non_negative_constraints:
-            print("\t\t", i)
-
-    def substitute(self, v):
-        new = Model()
-        
-        _v = sp.Symbol(f"_{v.name}")
-        __v = sp.Symbol(f"__{v.name}")
-
-        for i in range(len(self.constraints)):
-            c = self.constraints[i]
-            new.constraint(c.subs(v, _v-__v))
-
-        new_of = self.objective_function_expr.subs(
-            v, _v-__v)
-        
-        new.objective_function(SYMPLEX_MAX, new_of)
-
-        vs = self.variables
-        vs.remove(v)
-        new.variables = vs
-        new.variable(_v)
-        new.variable(__v)
-
-        new_non_negative_constraints = self.non_negative_constraints
-        for i in range(len(new_non_negative_constraints)):
-            c = new_non_negative_constraints[i]
-            if c.has(v):
-                new_non_negative_constraints.remove(c)
-                new.constraint(c.subs(v, _v-__v))
-        new_non_negative_constraints.append(_v >= 0)
-        new_non_negative_constraints.append(__v >= 0)
-        
-        new.non_negative_constraints = new_non_negative_constraints
-        
-        return new
 
     def to_slack_form(self):
         slack_model = Model()
@@ -255,11 +147,46 @@ class Model:
                 T[i,j] = A[i,j]
                 
         return T        
+    
+    # UTILS
+    def substitute(self, v):
+        new = Model()
         
+        __v = sp.Symbol(f"__{v.name}")
+        _v = sp.Symbol(f"_{v.name}")
+
+        for i in range(len(self.constraints)):
+            c = self.constraints[i]
+            new.constraint(c.subs(v, _v-__v))
+
+        new_of = self.objective_function_expr.subs(
+            v, _v-__v)
+        
+        new.objective_function(SYMPLEX_MAX, new_of)
+
+        vs = self.variables
+        vs.remove(v)
+        new.variables = vs
+        new.variable(__v)
+        new.variable(_v)
+
+        new_non_negative_constraints = self.non_negative_constraints
+        for i in range(len(new_non_negative_constraints)):
+            c = new_non_negative_constraints[i]
+            if c.has(v):
+                new_non_negative_constraints.remove(c)
+                new.constraint(c.subs(v, _v-__v))
+        new_non_negative_constraints.append(_v >= 0)
+        new_non_negative_constraints.append(__v >= 0)
+        
+        new.non_negative_constraints = new_non_negative_constraints
+        
+        return new
+    
     def rename_variable(self, old: sp.Symbol, new: sp.Symbol) -> None:
         # rename in self.variables
         for i in range(len(self.variables)):
-            if self.variables[i] == old:
+            if self.variables[i].name == old.name:
                 self.variables[i] = new
                 
         # rename in of
@@ -276,7 +203,7 @@ class Model:
         for i in range(len(self.non_negative_constraints)):
             self.non_negative_constraints[i] = self.non_negative_constraints[i].subs(
                 old, new)
-
+            
     def reset_variable_names(self):
         for i in range(len(self.variables)):
             self.rename_variable(self.variables[i], sp.Symbol(f"k{i}"))
@@ -284,68 +211,23 @@ class Model:
         for i in range(len(self.variables)):
             self.rename_variable(sp.Symbol(f"k{i}"), sp.Symbol(f"x{i+1}"))
 
-class Equation:
-    def __init__(self, lhs:sp.Expr()=sp.Expr(), rhs:sp.Expr()=sp.Expr()) -> None:
-        self.lhs : sp.Expr = lhs
-        self.rhs : sp.Expr = rhs
+    def show(self):
+        if self.optimization_type:
+            print("MIN")
+        elif not (self.optimization_type):
+            print("MAX")
+        else:
+            raise SymplexInvalidExpr
 
-def subs_vars(expr: sp.Expr, vars: list, vals: list):
-    assert len(vals) == len(vars)
-    
-    if len(vars) > 0:
-        subs_vars(expr.subs(vars[0], vals[0]), vars[1:], vals[1:])
-    
-def extract_coefficient(expr: sp.Expr, v):
-    d = expr.as_coefficients_dict()
-    if v in d:
-        return d[v]
-    else:
-        return 0
+        print("Objective: \t", self.objective_function_expr)
+        print("Variables: \t", self.variables)
+        print("Constraints: ")
+        for i in self.constraints:
+            if type(i) != Equation:
+                print("\t\t", i)
+            else:
+                print("\t\t", i.lhs, " == ", i.rhs)
+        print("Non-negative Constraints: ")
+        for i in self.non_negative_constraints:
+            print("\t\t", i)
 
-def find_pivot_column(T: np.ndarray) -> int:
-    # r = min(T[0,1:T.shape[1]])
-    # r = min([r, 0])
-
-    # return r
-    
-    r = 1
-    for i in range(2,T.shape[1]):
-        if T[0,i] < T[0,r]:
-            r = i
-    if T[0,r] >= 0:
-        return None
-    else:
-        return r
-
-def find_pivot_row(T: np.ndarray, pivot_col: int) -> int:
-    last_col = T[:,-1]
-    col = T[:,pivot_col]
-    
-    for i in range(1,T.shape[0]-1):
-        if col[i] < SYMPLEX_ZERO:
-            return None
-        last_col[i] /= col[i]
-    
-    r = 1
-    for i in range(2,T.shape[0]-1):
-        if last_col[i] < last_col[r]:
-            r = i
-            
-    return r
-
-# TODO: Fix pivot
-def pivot(T: np.ndarray, row: int, col: int) -> np.ndarray:
-    pivot_value = T[row,col]
-
-    if pivot_value < SYMPLEX_ZERO:
-        return None
-    
-    for i in range(len(T[row,:])):
-        T[row,i] /= pivot_value
-        
-    for i in range(len(T)):
-        if i != row:
-            multiplier = T[i,col]
-            for j in range(len(T[0])):
-                T[i,j] = T[i][j] - multiplier * T[row][j]
-    return T
