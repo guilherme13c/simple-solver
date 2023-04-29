@@ -96,10 +96,10 @@ class Model:
         slack_model.non_negative_constraints = self.non_negative_constraints
         for i in range(len(self.constraints)):
             c = self.constraints[i]
-            constraints.append(Equation(c.lhs + sp.Symbol(f"s{i}"), c.rhs))
-            slack_model.variable(sp.Symbol(f"s{i}"))
-            slack_model.slack_vars.append(sp.Symbol(f"s{i}"))
-            slack_model.non_negative_constraints.append(sp.parse_expr(f"s{i} >= 0"))
+            constraints.append(Equation(c.lhs + sp.Symbol(f"s{i+1}"), c.rhs))
+            slack_model.variable(sp.Symbol(f"s{i+1}"))
+            slack_model.slack_vars.append(sp.Symbol(f"s{i+1}"))
+            slack_model.non_negative_constraints.append(sp.parse_expr(f"s{i+1} >= 0"))
         slack_model.constraints = constraints
         
         return slack_model
@@ -146,9 +146,56 @@ class Model:
             for j in range(0,n+1):
                 T[i,j] = A[i,j]
                 
-        return T        
+        return T
+    
+    # TODO: finish
+    def to_extended_tableau(self) -> np.ndarray:
+        R, V = len(self.constraints), len(self.variables)
+        L, C = R+1, V+R+1
+        tableau = np.zeros(dtype=sp.Expr, shape=[L,C])
+        
+        # B, N = 
+        
+        for i in range(0,L-1):
+            tableau[i+1,i] = 1
+            
+        
+        for i in range(R,R+V):
+            pass
+        
+        # print(tableau)
+        return tableau
     
     # UTILS
+    def generate_aux_problem(self):
+        aux_problem = Model()
+        
+        for i in range(len(self.variables)):
+            aux_problem.variable(sp.Symbol(f"x{i+1}"))
+            aux_problem.constraint(sp.parse_expr(f"x{i+1}>=0"))
+            
+        for i in range(len(self.constraints)):
+            aux_problem.variable(sp.Symbol(f"u{i+1}"))
+            aux_problem.constraint(sp.parse_expr(f"u{i+1}>=0"))
+            
+        for i in range(len(self.constraints)):
+            ui = -1
+            if self.constraints[i].rhs >= 0: ui = 1
+            lhs = self.constraints[i].lhs + ui*sp.Symbol(f"u{i+1}")
+            rhs = self.constraints[i].rhs
+            if rhs < 0:
+                lhs = -lhs
+                rhs = -rhs
+            
+            aux_problem.constraints.append(Equation(lhs, rhs))
+            
+        of = 0
+        for i in range(len(self.constraints)):
+            of -= sp.Symbol(f"u{i+1}")
+        aux_problem.objective_function(SYMPLEX_MAX, of)
+        
+        return aux_problem
+    
     def substitute(self, v):
         new = Model()
         

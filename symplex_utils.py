@@ -5,6 +5,8 @@ import sympy as sp
 SYMPLEX_MAX = False
 SYMPLEX_MIN = True
 
+SYMPLEX_INFEASIBLE = "SYMPLEX_INFEASIBLE"
+
 SYMPLEX_ZERO = 1e-9
 
 class SymplexExecutionError(Exception):
