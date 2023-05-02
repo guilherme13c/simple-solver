@@ -1,30 +1,6 @@
-from symplex import *
 import sys
-
-def read_input(input_file_name):
-    input_data = []
-    input_file = open(input_file_name, "r")
-    for l in input_file:
-        input_data.append(l.split(" "))
-
-    max_or_min = (input_data[0][0] == "MIN")
-    obj_function = input_data[0][1:]
-    constraints = input_data[1:]
-
-    obj_function = Model.generate_symbolic_expr(
-        " ".join(obj_function))
-
-    aux = []
-    for i in constraints:
-        c = Model.generate_symbolic_expr(" ".join(i))
-        if type(c) == list:
-            aux.append(c[0])
-            aux.append(c[1])
-        else:
-            aux.append(c)
-    constraints = aux
-    
-    return max_or_min, obj_function, constraints
+from symplex_model import *
+from read_input import read_input
 
 def symplex(max_or_min, obj_function, constraints):
     model = Model()
@@ -110,26 +86,28 @@ def two_phase_symplex(max_or_min, obj_function, constraints):
     aux_problem.show()
     print("----------------------------------------------------------")
     
-    AUX = aux_problem.to_tableau()
+    # AUX = aux_problem.to_tableau()
     
     T_AUX = aux_problem.to_extended_tableau()
     sp.pprint(sp.Matrix(T_AUX))
+    R, V = len(aux_problem.constraints), len(aux_problem.variables)
     
-    # found = False
-    # while not found:
-    #     col = find_pivot_column(AUX)
-    #     if col == None:
-    #         found = True
-    #         continue
-    #     row = find_pivot_row(AUX, col)
-    #     if row == None:
-    #         found = True
-    #         continue
-    #     AUX = pivot(AUX, row, col)
-    # opt_aux = AUX[0,-1]
+    found = False
+    while not found:
+        col = find_pivot_column_extended(T_AUX, R, V)
+        if col == None:
+            found = True
+            continue
+        row = find_pivot_row_extended(T_AUX, col, R, V)
+        if row == None:
+            found = True
+            continue
+        T_AUX = pivot_extended(T_AUX, row, col, R, V)
+    opt_aux = T_AUX[0,-1]
     
-    # if opt_aux < 0: return SYMPLEX_INFEASIBLE
+    sp.pprint(sp.Matrix(T_AUX))
     
+    if opt_aux < 0: return SYMPLEX_INFEASIBLE
     # TODO: solve auxiliary problem
 
 if __name__ == "__main__":

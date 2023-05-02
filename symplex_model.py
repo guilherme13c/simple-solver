@@ -9,15 +9,6 @@ class Model:
         self.non_negative_constraints = list()
         self.slack_vars = list()
 
-    @staticmethod
-    def generate_symbolic_expr(expr: str):
-        r = sp.parse_expr(expr)
-        if (type(r) == bool):
-            s = expr.replace("\n", "").split("==")
-            lhs, rhs = sp.parse_expr(s[0]), sp.parse_expr(s[1])
-            r = [lhs >= rhs, lhs <= rhs]
-        return r
-
     def variable(self, symbol: sp.Symbol):
         if not symbol in self.variables:
             self.variables.append(symbol)
@@ -135,10 +126,10 @@ class Model:
             b.append(c.rhs)
         b = np.array(b, dtype=sp.Expr)
         
-        x = [sp.Symbol("_w")]
-        for v in self.variables:
-            x.append(v)
-        x = np.array(x, dtype=sp.Expr)
+        # x = [sp.Symbol("_w")]
+        # for v in self.variables:
+        #     x.append(v)
+        # x = np.array(x, dtype=sp.Expr)
         
         T = np.zeros(shape=[m+1,n+2], dtype=sp.Expr)
         for i in range(0,m+1):
@@ -148,22 +139,38 @@ class Model:
                 
         return T
     
-    # TODO: finish
     def to_extended_tableau(self) -> np.ndarray:
         R, V = len(self.constraints), len(self.variables)
         L, C = R+1, V+R+1
         tableau = np.zeros(dtype=sp.Expr, shape=[L,C])
         
-        # B, N = 
-        
+        # identity matrix
         for i in range(0,L-1):
             tableau[i+1,i] = 1
             
+        coefs = []
+        for v in self.variables:
+            c = extract_coefficient(self.objective_function_expr, v)
+            coefs.append(c)
+        for i in range(R, R+V):
+            tableau[0,i] = -coefs[i-R]
+            
+        A_tmp = [] 
+        for c in self.constraints:
+            coefs = []
+            for v in self.variables:
+                coefs.append(extract_coefficient(c.lhs, v))
+            A_tmp.append(coefs)
+        for i in range(R):
+            for j in range(V):
+                tableau[i+1,j+R] = A_tmp[i][j]
         
-        for i in range(R,R+V):
-            pass
+        b = [0]
+        for c in self.constraints:
+            b.append(c.rhs)
+        for i in range(R+1):
+            tableau[i,-1] = b[i]
         
-        # print(tableau)
         return tableau
     
     # UTILS
