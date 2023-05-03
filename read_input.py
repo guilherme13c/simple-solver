@@ -22,11 +22,12 @@
 #         else:
 #             aux.append(c)
 #     constraints = aux
-    
+
 #     return max_or_min, obj_function, constraints
 
 from symplex_tableau import *
 from symplex_var_table import *
+
 
 def read_input(input_file_name):
     input_data = []
@@ -40,12 +41,11 @@ def read_input(input_file_name):
 
     obj_function = sp.parse_expr(
         " ".join(obj_function))
-    
+
     constraints = parse_constraints(constraints)
-    
+
     for i in range(len(constraints)):
-        constraints[i] = constraints[i].subs(sp.Symbol("t"), sp.Symbol(f"u{i+1}"))
-    
-    
-    
+        constraints[i] = constraints[i].subs(
+            sp.Symbol("t"), sp.Symbol(f"u{i+1}"))
+
     return max_or_min, obj_function, constraints
