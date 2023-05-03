@@ -45,7 +45,8 @@ def read_input(input_file_name):
     constraints = parse_constraints(constraints)
 
     for i in range(len(constraints)):
-        constraints[i] = constraints[i].subs(
-            sp.Symbol("t"), sp.Symbol(f"u{i+1}"))
+        if type(constraints[i]) == sp.Expr:
+            constraints[i] = constraints[i].subs(
+                sp.Symbol("t"), sp.Symbol(f"z{i+1}"))
 
     return max_or_min, obj_function, constraints

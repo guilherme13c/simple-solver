@@ -24,8 +24,8 @@ class Model:
         t = sp.Symbol("t")
         if constraint.has(t):
             constraint = constraint.subs(
-                t, sp.Symbol(f"u{len(self.constraints)+1}"))
-            c = Constraint(sp.Symbol(f"u{len(self.constraints)+1}", 0))
+                t, sp.Symbol(f"z{len(self.constraints)+1}"))
+            c = Constraint(sp.Symbol(f"z{len(self.constraints)+1}", 0))
             c.non_negativity = True
             self.constraints.append(c)
 
@@ -49,10 +49,10 @@ class Model:
     def extract_constraints_coefficients(self):
         dicts = []
         for i in self.constraints:
-            dicts.append(i.as_coefficients_dict())
+            dicts.append(i.lhs.as_coefficients_dict())
         return dicts
 
-    def subs(self, old, new) -> None:
+    def subs(self, old: sp.Expr, new: sp.Expr) -> None:
         self.variables.remove(old)
         for v in new.free_symbols:
             self.variables.add(v)
@@ -64,6 +64,9 @@ class Model:
         for c in self.constraints:
             if c.has(old):
                 c.subs(old, new)
+
+        if self.objective.has(old):
+            self.objective = self.objective.subs(old, new)
 
     def show(self) -> None:
         print(f"MAX\t{self.objective}")
@@ -97,9 +100,9 @@ def standard_variables(model: Model) -> Tuple[Model, VarTable]:
                 non_negativity = True
 
         if not non_negativity:
-            _v, __v = sp.Symbol(f"_{v.name}"), sp.Symbol(f"__{v.name}")
-            model.subs(v, _v-__v)
-            var_table.add(v, _v-__v)
+            v_, v__ = sp.Symbol(f"{v.name}_"), sp.Symbol(f"{v.name}__")
+            model.subs(v, v_-v__)
+            var_table.add(v, v_-v__)
 
     return model, var_table
 

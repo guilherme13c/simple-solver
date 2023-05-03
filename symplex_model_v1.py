@@ -204,8 +204,8 @@ class Model:
     def substitute(self, v):
         new : Model = Model()
         
-        _v = sp.Symbol(f"_{v.name}")
-        __v = sp.Symbol(f"__{v.name}")
+        _v = sp.Symbol(f"{v.name}_")
+        __v = sp.Symbol(f"{v.name}__")
 
         for i in range(len(self.constraints)):
             c = self.constraints[i]

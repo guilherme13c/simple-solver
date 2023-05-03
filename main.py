@@ -8,15 +8,17 @@ def main():
 
     model = modelFactory(max_or_min, obj_function, constraints)
     model.show()
+    print("----------------------------------------------")
 
     model, var_table = standard_variables(model)
 
     model.show()
-    print(var_table.table)
+    print("var table:\t", var_table.table)
+    print("----------------------------------------------")
 
+    tableau = Tableau(model)
+    tableau.show()
 
 if __name__ == "__main__":
     main()
 
-# TODO: fix additional variable insertion
-# adding variables isn't adding a respective non negativity constraint
