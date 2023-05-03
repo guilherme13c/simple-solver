@@ -1,11 +1,12 @@
-from __future__ import annotations
 import numpy as np
 import sympy as sp
 
 SYMPLEX_MAX = False
 SYMPLEX_MIN = True
 
-SYMPLEX_INFEASIBLE = "SYMPLEX_INFEASIBLE"
+SYMPLEX_INFEASIBLE = "inviavel"
+SYMPLEX_UNBOUNDED = "ilimitado"
+SYMPLEX_OPTIMAL = "otimo"
 
 SYMPLEX_ZERO = 1e-9
 
@@ -58,6 +59,7 @@ def find_pivot_row(T: np.ndarray, pivot_col: int) -> int:
         if last_col[i] < last_col[r]:
             r = i
     
+    if last_col[r] == float("inf"): return None
     return r
 
 def pivot(T: np.ndarray, row: int, col: int) -> np.ndarray:

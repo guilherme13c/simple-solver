@@ -1,0 +1,3 @@
+class SymplexParsingFailed(Exception):
+    pass
+
