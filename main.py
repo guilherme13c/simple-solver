@@ -19,6 +19,15 @@ def main():
     tableau = Tableau(model)
     tableau.show()
 
-if __name__ == "__main__":
-    main()
+def test():
+    max_or_min, obj_function, constraints = read_input(sys.argv[1])
+    
+    print(max_or_min, obj_function)
+    print([i for i in constraints])
+    
+    model = modelFactory(max_or_min, obj_function, constraints)
+    model.show()
 
+if __name__ == "__main__":
+    # main()
+    test()

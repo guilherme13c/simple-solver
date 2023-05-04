@@ -57,83 +57,44 @@ def parse_constraints(exprs: List[str]) -> List[Constraint]:
     count = 1
 
     for i in range(len(exprs)):
-        expr = " ".join(exprs[i])
+        expr = "".join(exprs[i])
+        print(expr)
 
         # add auxiliar variable
         if expr.find("==") != -1:
-            # count, tmp = handle_eq(expr)
-            
-            # for i in tmp:
-            #     constraints.append(i)
-
             expr = expr.split("==")
             if len(expr) != 2:
                 raise SymplexParsingFailed
 
             count, tmp = handle_eq(expr[0], expr[1], count)
-
-            # lhs, rhs = sp.parse_expr(expr[0]), sp.parse_expr(expr[1])
-            # if rhs < 0:
-            #     lhs, rhs = -lhs, -rhs
-
-            # c_aux = Constraint(sp.Symbol(f"u{count}"), 0)
-            # c_aux.non_negativity = True
-
-            # c = Constraint(lhs+sp.Symbol(f"u{count}"), rhs)
-
-            # constraints.append(c)
-            # constraints.append(c_aux)
-
-            constraints.append(Constraint(lhs+sp.Symbol(f"z{count}"), rhs))
-            constraints.append(Constraint(-lhs+sp.Symbol(f"z{count+1}"), -rhs))
-
-            c1 = Constraint(sp.Symbol(f"z{count}"), sp.parse_expr("0"))
-            c1.non_negativity = True
-            c2 = Constraint(sp.Symbol(f"z{count+1}"), sp.parse_expr("0"))
-            c2.non_negativity = True
-
-            constraints.append(c1)
-            constraints.append(c2)
-
-            count += 1
+            for j in tmp:
+                constraints.append(j)
 
         # add negative slack and auxiliar variables
         elif expr.find(">=") != -1:
-            non_negativity = is_non_negativity_constraint(expr)
             expr = expr.split(">=")
             if len(expr) != 2:
                 raise SymplexParsingFailed
 
-            lhs, rhs = sp.parse_expr(expr[0]), sp.parse_expr(expr[1])
+            count, tmp = handle_ge(expr[0], expr[1], count)
+            
+            for j in tmp:
+                constraints.append(j)
 
-            c = 0
-            if non_negativity:
-                c = Constraint(lhs, rhs)
-                c.non_negativity = True
-            else:
-                c = Constraint(-lhs+sp.Symbol(f"z{count}"), -rhs)
-                k = Constraint(sp.Symbol(f"z{count}"), sp.parse_expr("0"))
-                k.non_negativity = True
-                constraints.append(k)
-                count += 1
-            constraints.append(c)
 
         # add positive slack variable
         elif expr.find("<=") != -1:
-            expr = expr.split("<=")
-            lhs = sp.parse_expr(expr[0])+sp.Symbol(f"z{count}")
-            count += 1
-            rhs = sp.parse_expr(expr[1])
-
+            expr = expr.split(">=")
             if len(expr) != 2:
                 raise SymplexParsingFailed
-
-            constraints.append(Constraint(lhs, rhs))
-            c = Constraint(sp.Symbol(f"z{count}"), sp.parse_expr("0"))
-            c.non_negativity = True
-            constraints.append(c)
+            
+            count, tmp = handle_le(expr[0], expr[1], count)
+            
+            for j in tmp:
+                constraints.append(j)
 
         else:
+            print(expr)
             raise SymplexParsingFailed
 
     return constraints
@@ -167,11 +128,8 @@ def parse_constraint(expr: str) -> Constraint:
         raise SymplexParsingFailed
 
 def handle_eq(lhs: str, rhs: str, count: int) -> List[Constraint]:
-    expr = expr.split("==")
-    if len(expr) != 2:
-        raise SymplexParsingFailed
-
-    lhs, rhs = sp.parse_expr(expr[0]), sp.parse_expr(expr[1])
+    lhs, rhs = sp.parse_expr(lhs[0]), sp.parse_expr(rhs[1])
+    
     if rhs < 0:
         lhs, rhs = -lhs, -rhs
 
@@ -184,11 +142,39 @@ def handle_eq(lhs: str, rhs: str, count: int) -> List[Constraint]:
 
     return count, [c, c_aux]
 
-def handle_le(lhs: str, rhs: str, count: int) -> List[Constraint]:
-    lhs, rhs = sp.parse_expr(expr[0]), sp.parse_expr(expr[1])
+def handle_le(lhs: str, rhs: str, count: int) -> List[Constraint]:    
+    lhs, rhs = sp.parse_expr(lhs), sp.parse_expr(rhs)
+    
     if rhs < 0:
         lhs, rhs = -lhs, -rhs
-        
+        return handle_ge(lhs, rhs, count)
 
+    c_slack = Constraint(sp.Symbol(f"s{count}"), 0)
+    c_slack.non_negativity = True
+
+    c = Constraint(lhs+sp.Symbol(f"s{count}"), rhs)
+    
+    count += 1
+    
+    return count, [c, c_slack]
+        
 def handle_ge(lhs: str, rhs: str, count: int) -> List[Constraint]:
-    pass
+    lhs, rhs = sp.parse_expr(lhs), sp.parse_expr(rhs)
+    
+    if rhs < 0:
+        lhs, rhs = -lhs, -rhs
+        return handle_le(lhs, rhs, count)
+    
+    if rhs == 0 and len(lhs.free_symbols) == 1:
+        c = Constraint(lhs, rhs)
+        c.non_negativity = True
+        return count, [c]
+    
+    c_slack = Constraint(sp.Symbol(f"s{count}"), 0)
+    c_slack.non_negativity = True
+    
+    c_aux = Constraint(sp.Symbol(f"u{count}"), 0)
+    c_aux.non_negativity = True
+
+    c = Constraint(lhs+sp.Symbol(f"s{count}")+sp.Symbol(f"u{count}"), rhs)
+    
