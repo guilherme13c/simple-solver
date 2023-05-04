@@ -3,10 +3,13 @@ from simplex_parse import *
 from simplex_tableau import *
 from simplex import *
 import sys
+from install_requirements import install_requirements
 
-# TODO: change output to file
+
 def main():
     in_file = sys.argv[1]
+
+    output = OutputManager("output.txt")
 
     optimization, objective_function, constraints = read_input(in_file)
 
@@ -78,9 +81,11 @@ def main():
         auxiliar_tableau)
 
     if auxiliar_tableau[0, -1] != 0:
-        print(f"status: infeasible")
-        print(f"certificate:")
-        print(aux_certificate)
+        output.print_to_file(f"Status: inviavel")
+        output.print_to_file(f"Certificado:")
+        for i in aux_certificate:
+            output.print_to_file(i, end=' ')
+        output.print_to_file()
 
     else:
         for i in additional_variables:
@@ -89,17 +94,21 @@ def main():
         status, tableau, certificate = simplex(tableau)
 
         if status == "unbounded":
-            print(f"status: unbounded")
-            print("certificate:")
-            print(certificate)
+            output.print_to_file(f"Status: ilimitado")
+            output.print_to_file("Certificado:")
+            for i in certificate:
+                output.print_to_file(i, end=' ')
+            output.print_to_file()
 
         elif status == "optimal":
-            print(f"status: optimal")
-            print(f"objective: {tableau[0,-1]}")
-            print("certificate:")
-            print(certificate)
+            output.print_to_file(f"Status: otimo")
+            output.print_to_file(f"Objetivo: {tableau[0,-1]}")
+            output.print_to_file("Certificado:")
+            for i in certificate:
+                output.print_to_file(i, end=' ')
+            output.print_to_file()
 
-            print("values: ")
+            output.print_to_file("Solucao: ")
 
             values = []
             variable_values = dict()
@@ -119,8 +128,11 @@ def main():
                             j.name, variable_values[j.name])
                     values.append(substitution)
 
-            print(values)
+            for i in values:
+                output.print_to_file(i, end=' ')
+            output.print_to_file()
 
 
 if __name__ == "__main__":
+    install_requirements()
     main()
