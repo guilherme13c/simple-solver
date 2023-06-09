@@ -62,9 +62,12 @@ def extract_variables(expr: str):
             variables.add(v)
 
     else:
-        expr = sp.parse_expr(expr)
-        for v in expr.free_symbols:
-            variables.add(v)
+        try:
+            expr = sp.parse_expr(expr)
+            for v in expr.free_symbols:
+                variables.add(v)
+        except:
+            raise Exception
             
     return variables
 
@@ -77,7 +80,7 @@ def is_non_negativity_constraint_for(constraint: str, variable: str):
     
     if len(lhs.free_symbols) != 1:
         return False
-    if rhs != 0:
+    if rhs < 0:
         return False
 
     return True
@@ -95,7 +98,8 @@ def add_slack_variables(constraints: List[str]):
             
         elif ">=" in constraints[i]:
             expr = constraints[i].split(">=")
-            lhs, rhs = sp.parse_expr(expr[0]), sp.parse_expr(expr[1])
+            lhs = sp.parse_expr(expr[0])
+            rhs = sp.parse_expr(expr[1])
             if not(len(lhs.free_symbols) == 1 and rhs == 0):
             
                 constraints[i] = constraints[i].replace(">=", f"- s{i+1} ==")

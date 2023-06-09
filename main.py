@@ -3,8 +3,6 @@ from simplex_parse import *
 from simplex_tableau import *
 from simplex import *
 import sys
-from install_requirements import install_requirements
-
 
 def main():
     in_file = sys.argv[1]
@@ -20,11 +18,15 @@ def main():
         constraints[i] = ensure_rhs_positivity(constraints[i])
 
     original_variables = set()
-    original_variables = original_variables.union(
-        extract_variables(objective_function))
+    try: tmp = extract_variables(objective_function)
+    except: return 1
+    
+    original_variables = original_variables.union(tmp)
     for i in range(len(constraints)):
-        original_variables = original_variables.union(
-            extract_variables(constraints[i]))
+        try: tmp = extract_variables(constraints[i]) 
+        except: return 1
+        
+        original_variables = original_variables.union(tmp)
 
     original_variables = sorted(list([v.name for v in original_variables]))
 
@@ -64,6 +66,7 @@ def main():
     for i in slack_variables:
         constraints.append(i+" >= 0")
 
+    if (len(sp.parse_expr(objective_function).free_symbols) == 0): return 1
     tableau = to_tableau(objective_function, constraints,
                          variables_after_substitution, slack_variables, additional_variables)
 
@@ -112,9 +115,10 @@ def main():
 
             values = []
             variable_values = dict()
-            for i in range(len(tableau[0, len(tableau)-1:len(tableau[0])-1])):
-                variable_values[variables_after_substitution[i -
-                                                             len(tableau)+1]] = tableau[0, i]
+            
+            for i in range(len(variables_after_substitution)):
+                idx = variables_after_substitution[i]
+                variable_values[idx] = tableau[0, i]
 
             for i in range(len(original_variables)):
                 if original_variables[i] in variable_values.keys():
@@ -134,5 +138,4 @@ def main():
 
 
 if __name__ == "__main__":
-    install_requirements()
     main()
